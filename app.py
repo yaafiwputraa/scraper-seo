@@ -192,20 +192,6 @@ def scrape_google(query):
 
     return results
 
-# --- FUNGSI AMBIL SEMUA DATA DARI SUPABASE ---
-def get_all_data():
-    try:
-        response = supabase.table("scraping_results").select("keyword, title, description, url").execute()
-        if response.data:
-            df = pd.DataFrame(response.data)
-            df = df[['title', 'description', 'url', 'keyword']]
-            df.columns = ['Title', 'Description', 'Url', 'Keyword']
-            return df
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"❌ Gagal mengambil data dari database: {e}")
-        return pd.DataFrame()
-
 # --- SECTION: PENCARIAN ---
 st.markdown('<div class="card">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">🔎 Cari Kata Kunci</div>', unsafe_allow_html=True)
@@ -240,7 +226,7 @@ if submit_button:
                 st.error("❌ Tidak ada data yang berhasil diambil.")
 
 # =============================================
-# TABEL 1: HASIL PENCARIAN TERBARU
+# TABEL: HASIL PENCARIAN TERBARU
 # =============================================
 if 'current_df' in st.session_state:
     df_to_show = st.session_state['current_df']
@@ -250,74 +236,28 @@ if 'current_df' in st.session_state:
     st.markdown('<div class="section-title">Hasil Pencarian Terbaru</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="metric-box">✅ {len(df_to_show)} hasil ditemukan untuk kata kunci: <em>{kw}</em></div>', unsafe_allow_html=True)
     st.dataframe(df_to_show, use_container_width=True, hide_index=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
-st.divider()
+    # --- EXPORT & HAPUS DATA ---
+    def hapus_semua_data():
+        try:
+            supabase.table("scraping_results").delete().neq("keyword", "").execute()
+        except Exception:
+            pass
+        if 'current_df' in st.session_state:
+            del st.session_state['current_df']
+        if 'current_keyword' in st.session_state:
+            del st.session_state['current_keyword']
 
-# =============================================
-# TABEL 2: SEMUA DATA DARI DATABASE
-# =============================================
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.markdown('<div class="section-title">Total Data</div>', unsafe_allow_html=True)
-
-# Auto-load saat pertama kali buka, atau refresh manual
-if 'all_df' not in st.session_state:
-    df_all = get_all_data()
-    if not df_all.empty:
-        st.session_state['all_df'] = df_all
-
-col1, col2 = st.columns([1, 4])
-with col1:
-    if st.button("🔄 Refresh Data"):
-        df_all = get_all_data()
-        if not df_all.empty:
-            st.session_state['all_df'] = df_all
-            st.rerun()
-        else:
-            st.info("Belum ada data tersimpan di database.")
-
-if 'all_df' in st.session_state:
-    df_all_show = st.session_state['all_df']
-    total_rows = len(df_all_show)
-
-    # Export button
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_all_show.to_excel(writer, index=False, sheet_name='Sheet1')
+        df_to_show.to_excel(writer, index=False, sheet_name='Sheet1')
+
     st.download_button(
-        label="Export Data",
+        label="⬇️ Download & Hapus Data",
         data=output.getvalue(),
-        file_name="semua_hasil_scraping.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        file_name=f"{kw}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        on_click=hapus_semua_data
     )
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Pagination
-    ROWS_PER_PAGE = 50
-    total_pages = max(1, -(-total_rows // ROWS_PER_PAGE))
-
-    if 'pagination' not in st.session_state:
-        st.session_state['pagination'] = 1
-    page_num = st.session_state['pagination']
-
-    start_idx = (page_num - 1) * ROWS_PER_PAGE
-    end_idx = start_idx + ROWS_PER_PAGE
-    df_page = df_all_show.iloc[start_idx:end_idx]
-
-    st.dataframe(df_page, use_container_width=True, hide_index=True)
-
-    # Pagination di bawah tabel
-    page_num = st.radio(
-        "Halaman",
-        options=list(range(1, total_pages + 1)),
-        horizontal=True,
-        index=st.session_state['pagination'] - 1,
-        key="pagination_radio",
-        label_visibility="collapsed"
-    )
-    st.session_state['pagination'] = page_num
-else:
-    st.info("Belum ada data tersimpan di database.")
-
-st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
