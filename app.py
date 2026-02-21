@@ -253,7 +253,7 @@ if 'current_df' in st.session_state:
         df_to_show.to_excel(writer, index=False, sheet_name='Sheet1')
 
     st.download_button(
-        label="⬇️ Download & Hapus Data",
+        label="Download Data",
         data=output.getvalue(),
         file_name=f"{kw}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
