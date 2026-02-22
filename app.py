@@ -192,49 +192,127 @@ def scrape_google(query):
 
     return results
 
+# --- INISIALISASI SESSION STATE ---
+if 'keyword_count' not in st.session_state:
+    st.session_state['keyword_count'] = 1
+if 'keywords' not in st.session_state:
+    st.session_state['keywords'] = []
+
 # --- SECTION: PENCARIAN ---
 st.markdown('<div class="card">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">🔎 Cari Kata Kunci</div>', unsafe_allow_html=True)
 
-with st.form(key='search_form'):
-    keyword = st.text_input("Kata Kunci", placeholder="Contoh: gohighlevel affiliate", label_visibility="collapsed")
-    submit_button = st.form_submit_button(label='Cari dan Simpan Data')
+# Step 1: Pilih jumlah keyword
+jumlah = st.number_input(
+    "Berapa keyword yang ingin dicari?",
+    min_value=1, max_value=20,
+    value=st.session_state['keyword_count'],
+    step=1
+)
+
+# Update & reset jika jumlah berubah
+if st.session_state['keyword_count'] != jumlah:
+    st.session_state['keyword_count'] = jumlah
+    st.session_state['keywords'] = st.session_state['keywords'][:jumlah]
+    st.rerun()
+
+keywords = st.session_state['keywords']
+sisa = jumlah - len(keywords)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Step 2: Input keyword jika masih ada sisa
+if sisa > 0:
+    col_input, col_btn = st.columns([5, 1])
+    with col_input:
+        new_kw = st.text_input(
+            f"Keyword ke-{len(keywords) + 1} dari {jumlah}",
+            placeholder="Masukkan kata kunci...",
+            key=f"input_kw_{len(keywords)}"
+        )
+    with col_btn:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("➕ Tambah", use_container_width=True):
+            if not new_kw.strip():
+                st.warning("⚠️ Keyword tidak boleh kosong!")
+            elif new_kw.strip() in keywords:
+                st.warning("⚠️ Keyword sudah ada di daftar!")
+            else:
+                st.session_state['keywords'].append(new_kw.strip())
+                st.rerun()
+
+# Step 3: Tampilkan daftar keyword yang sudah ditambahkan
+if keywords:
+    st.markdown("**Daftar keyword yang sudah ditambahkan:**")
+    for i, kw in enumerate(keywords):
+        col_num, col_kw, col_del = st.columns([0.3, 6, 1])
+        with col_num:
+            st.markdown(f"**{i+1}.**")
+        with col_kw:
+            st.code(kw, language=None)
+        with col_del:
+            if st.button("🗑️", key=f"del_{i}", help="Hapus keyword ini"):
+                st.session_state['keywords'].pop(i)
+                st.rerun()
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Validasi & tombol search
+semua_terisi = len(keywords) == jumlah
+
+if keywords and not semua_terisi:
+    st.warning(f"⚠️ Masih kurang {sisa} keyword lagi.")
+
+search_clicked = st.button(
+    "🔍 Mulai Cari",
+    disabled=not semua_terisi,
+    type="primary",
+    use_container_width=True
+)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
 # --- LOGIKA SCRAPING ---
-if submit_button:
-    if not keyword:
-        st.warning("⚠️ Silakan masukkan kata kunci terlebih dahulu.")
+if search_clicked and semua_terisi:
+    all_raw_data = []
+    progress = st.progress(0, text="Memulai pencarian...")
+
+    for idx, kw in enumerate(keywords):
+        progress.progress(idx / len(keywords), text=f"Mencari: **{kw}** ({idx+1}/{len(keywords)})...")
+        raw_data = scrape_google(kw)
+        all_raw_data.extend(raw_data)
+
+    progress.progress(1.0, text="✅ Selesai!")
+
+    if all_raw_data:
+        try:
+            supabase.table("scraping_results").insert(all_raw_data).execute()
+        except Exception as e:
+            st.warning(f"⚠️ Data berhasil diambil tapi gagal disimpan ke database: {e}")
+
+        df = pd.DataFrame(all_raw_data)
+        df = df[['title', 'description', 'url', 'keyword']]
+        df.columns = ['Title', 'Description', 'Url', 'Keyword']
+
+        st.session_state['current_df'] = df
+        st.session_state['current_keywords'] = keywords.copy()
+        st.session_state['keywords'] = []  # Reset daftar keyword setelah search
+        st.session_state['keyword_count'] = 1
+        st.rerun()
     else:
-        with st.spinner(f"Sedang mengambil data untuk: **{keyword}**..."):
-            raw_data = scrape_google(keyword)
-
-            if raw_data:
-                try:
-                    supabase.table("scraping_results").insert(raw_data).execute()
-                except Exception as e:
-                    st.warning(f"⚠️ Data berhasil diambil tapi gagal disimpan ke database: {e}")
-
-                df = pd.DataFrame(raw_data)
-                df = df[['title', 'description', 'url', 'keyword']]
-                df.columns = ['Title', 'Description', 'Url', 'Keyword']
-
-                st.session_state['current_df'] = df
-                st.session_state['current_keyword'] = keyword
-            else:
-                st.error("❌ Tidak ada data yang berhasil diambil.")
+        st.error("❌ Tidak ada data yang berhasil diambil.")
 
 # =============================================
 # TABEL: HASIL PENCARIAN TERBARU
 # =============================================
 if 'current_df' in st.session_state:
     df_to_show = st.session_state['current_df']
-    kw = st.session_state.get('current_keyword', '')
+    kws = st.session_state.get('current_keywords', [])
+    kw_label = ", ".join(kws) if kws else ""
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Hasil Pencarian Terbaru</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="metric-box">✅ {len(df_to_show)} hasil ditemukan untuk kata kunci: <em>{kw}</em></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-box">✅ {len(df_to_show)} hasil ditemukan dari {len(kws)} keyword: <em>{kw_label}</em></div>', unsafe_allow_html=True)
     st.dataframe(df_to_show, use_container_width=True, hide_index=True)
 
     # --- EXPORT & HAPUS DATA ---
@@ -245,17 +323,19 @@ if 'current_df' in st.session_state:
             pass
         if 'current_df' in st.session_state:
             del st.session_state['current_df']
-        if 'current_keyword' in st.session_state:
-            del st.session_state['current_keyword']
+        if 'current_keywords' in st.session_state:
+            del st.session_state['current_keywords']
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_to_show.to_excel(writer, index=False, sheet_name='Sheet1')
 
+    file_name = f"{'_'.join(kws)}.xlsx" if kws else "hasil_scraping.xlsx"
+
     st.download_button(
-        label="Download Data",
+        label="⬇️ Download & Hapus Data",
         data=output.getvalue(),
-        file_name=f"{kw}.xlsx",
+        file_name=file_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         on_click=hapus_semua_data
     )
