@@ -420,7 +420,7 @@ st.markdown('<div class="section-title">💬 People Also Ask Scraper</div>', uns
 
 # Step 1: Pilih jumlah keyword PAA
 paa_jumlah = st.number_input(
-    "Berapa keyword untuk PAA?",
+    "Berapa keyword untuk Peaple Also Ask?",
     min_value=1, max_value=20,
     value=st.session_state['paa_keyword_count'],
     step=1,
@@ -479,7 +479,7 @@ if paa_keywords and not paa_semua_terisi:
     st.warning(f"⚠️ Masih kurang {paa_sisa} keyword lagi.")
 
 paa_search_clicked = st.button(
-    "💬 Mulai Ambil PAA",
+    "💬 Mulai Ambil People Also Asked",
     disabled=not paa_semua_terisi,
     type="primary",
     use_container_width=True,
