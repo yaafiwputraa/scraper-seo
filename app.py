@@ -192,11 +192,62 @@ def scrape_google(query):
 
     return results
 
+# --- FUNGSI SCRAPING PAA ---
+def scrape_paa(query):
+    paa_results = []
+    try:
+        params = {
+            "q": query,
+            "start": 0,
+            "num": 10,
+            "hl": "id",
+            "gl": "id",
+            "api_key": SERPAPI_KEY
+        }
+        search = GoogleSearch(params)
+        data = search.get_dict()
+
+        if "error" in data:
+            error_msg = data["error"]
+            if "Invalid API key" in error_msg:
+                st.error("❌ SerpAPI Key tidak valid. Cek konfigurasi key kamu.")
+            elif "limit" in error_msg.lower():
+                st.error("❌ Limit pencarian SerpAPI habis. Upgrade plan atau tunggu bulan depan.")
+            else:
+                st.error(f"❌ SerpAPI Error: {error_msg}")
+            return []
+
+        for paa in data.get("related_questions", []):
+            paa_results.append({
+                "Keyword": query,
+                "Question": paa.get("question", ""),
+                "Answer": paa.get("snippet", "")
+            })
+
+    except Exception as e:
+        error_msg = str(e)
+        if "Invalid API key" in error_msg:
+            st.error("❌ SerpAPI Key tidak valid.")
+        elif "rate limit" in error_msg.lower():
+            st.error("❌ Limit pencarian SerpAPI habis.")
+        elif "timeout" in error_msg.lower():
+            st.error("❌ Koneksi timeout.")
+        else:
+            st.error(f"❌ Terjadi kesalahan: {e}")
+
+    return paa_results
+
 # --- INISIALISASI SESSION STATE ---
 if 'keyword_count' not in st.session_state:
     st.session_state['keyword_count'] = 1
 if 'keywords' not in st.session_state:
     st.session_state['keywords'] = []
+
+# PAA section state
+if 'paa_keyword_count' not in st.session_state:
+    st.session_state['paa_keyword_count'] = 1
+if 'paa_keywords' not in st.session_state:
+    st.session_state['paa_keywords'] = []
 
 # --- SECTION: PENCARIAN ---
 st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -338,6 +389,138 @@ if 'current_df' in st.session_state:
         file_name=file_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         on_click=hapus_semua_data
+    )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+st.divider()
+
+# =============================================
+# SECTION: PEOPLE ALSO ASK
+# =============================================
+st.markdown('<div class="card">', unsafe_allow_html=True)
+st.markdown('<div class="section-title">💬 People Also Ask Scraper</div>', unsafe_allow_html=True)
+
+# Step 1: Pilih jumlah keyword PAA
+paa_jumlah = st.number_input(
+    "Berapa keyword untuk PAA?",
+    min_value=1, max_value=20,
+    value=st.session_state['paa_keyword_count'],
+    step=1,
+    key="paa_jumlah_input"
+)
+
+if st.session_state['paa_keyword_count'] != paa_jumlah:
+    st.session_state['paa_keyword_count'] = paa_jumlah
+    st.session_state['paa_keywords'] = st.session_state['paa_keywords'][:paa_jumlah]
+    st.rerun()
+
+paa_keywords = st.session_state['paa_keywords']
+paa_sisa = paa_jumlah - len(paa_keywords)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Step 2: Input keyword PAA
+if paa_sisa > 0:
+    col_input, col_btn = st.columns([5, 1])
+    with col_input:
+        new_paa_kw = st.text_input(
+            f"Keyword ke-{len(paa_keywords) + 1} dari {paa_jumlah}",
+            placeholder="Masukkan kata kunci...",
+            key=f"paa_input_kw_{len(paa_keywords)}"
+        )
+    with col_btn:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("➕ Tambah", key="paa_tambah_btn", use_container_width=True):
+            if not new_paa_kw.strip():
+                st.warning("⚠️ Keyword tidak boleh kosong!")
+            elif new_paa_kw.strip() in paa_keywords:
+                st.warning("⚠️ Keyword sudah ada di daftar!")
+            else:
+                st.session_state['paa_keywords'].append(new_paa_kw.strip())
+                st.rerun()
+
+# Step 3: Tampilkan daftar keyword PAA
+if paa_keywords:
+    st.markdown("**Daftar keyword yang sudah ditambahkan:**")
+    for i, kw in enumerate(paa_keywords):
+        col_num, col_kw, col_del = st.columns([0.3, 6, 1])
+        with col_num:
+            st.markdown(f"**{i+1}.**")
+        with col_kw:
+            st.code(kw, language=None)
+        with col_del:
+            if st.button("🗑️", key=f"paa_del_{i}", help="Hapus keyword ini"):
+                st.session_state['paa_keywords'].pop(i)
+                st.rerun()
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+paa_semua_terisi = len(paa_keywords) == paa_jumlah
+
+if paa_keywords and not paa_semua_terisi:
+    st.warning(f"⚠️ Masih kurang {paa_sisa} keyword lagi.")
+
+paa_search_clicked = st.button(
+    "💬 Mulai Ambil PAA",
+    disabled=not paa_semua_terisi,
+    type="primary",
+    use_container_width=True,
+    key="paa_search_btn"
+)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# --- LOGIKA SCRAPING PAA ---
+if paa_search_clicked and paa_semua_terisi:
+    all_paa_data = []
+    paa_progress = st.progress(0, text="Memulai pencarian PAA...")
+
+    for idx, kw in enumerate(paa_keywords):
+        paa_progress.progress(idx / len(paa_keywords), text=f"Mencari PAA: **{kw}** ({idx+1}/{len(paa_keywords)})...")
+        paa_data = scrape_paa(kw)
+        all_paa_data.extend(paa_data)
+
+    paa_progress.progress(1.0, text="✅ Selesai!")
+
+    if all_paa_data:
+        df_paa = pd.DataFrame(all_paa_data)
+        st.session_state['paa_result_df'] = df_paa
+        st.session_state['paa_result_keywords'] = paa_keywords.copy()
+        st.session_state['paa_keywords'] = []
+        st.session_state['paa_keyword_count'] = 1
+        st.rerun()
+    else:
+        st.error("❌ Tidak ada PAA yang ditemukan untuk keyword tersebut.")
+
+# --- TABEL HASIL PAA ---
+if 'paa_result_df' in st.session_state:
+    df_paa_show = st.session_state['paa_result_df']
+    paa_kws = st.session_state.get('paa_result_keywords', [])
+    paa_kw_label = ", ".join(paa_kws) if paa_kws else ""
+
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Hasil People Also Ask</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-box">🙋 {len(df_paa_show)} pertanyaan ditemukan dari {len(paa_kws)} keyword: <em>{paa_kw_label}</em></div>', unsafe_allow_html=True)
+    st.dataframe(df_paa_show, use_container_width=True, hide_index=True)
+
+    def hapus_paa_data():
+        for key in ['paa_result_df', 'paa_result_keywords']:
+            if key in st.session_state:
+                del st.session_state[key]
+
+    paa_output = BytesIO()
+    with pd.ExcelWriter(paa_output, engine='openpyxl') as writer:
+        df_paa_show.to_excel(writer, index=False, sheet_name='People Also Ask')
+
+    paa_file_name = f"paa_{'_'.join(paa_kws)}.xlsx" if paa_kws else "people_also_ask.xlsx"
+
+    st.download_button(
+        label="⬇️ Download & Hapus Data PAA",
+        data=paa_output.getvalue(),
+        file_name=paa_file_name,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        on_click=hapus_paa_data
     )
 
     st.markdown('</div>', unsafe_allow_html=True)
