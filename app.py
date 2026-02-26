@@ -217,18 +217,28 @@ def scrape_paa(query):
                 st.error(f"❌ SerpAPI Error: {error_msg}")
             return []
 
-        # DEBUG sementara
         raw_paa = data.get("related_questions", [])
-        st.write(f"Total PAA ditemukan: {len(raw_paa)}")
+
+        # DEBUG: tampilkan semua field
         if raw_paa:
-            st.write("Contoh field dari PAA pertama:")
+            st.write("🔍 Semua field PAA pertama:")
             st.json(raw_paa[0])
 
         for paa in raw_paa:
+            answer = ""
+            if paa.get("snippet"):
+                answer = paa["snippet"]
+            elif paa.get("answer"):
+                answer = paa["answer"]
+            elif paa.get("list"):
+                answer = ", ".join(paa["list"])
+            elif paa.get("table"):
+                answer = str(paa["table"])
+
             paa_results.append({
                 "Keyword": query,
                 "Question": paa.get("question", ""),
-                "Answer": paa.get("snippet", "")
+                "Answer": answer
             })
 
     except Exception as e:
@@ -496,7 +506,7 @@ if paa_search_clicked and paa_semua_terisi:
         st.session_state['paa_result_keywords'] = paa_keywords.copy()
         st.session_state['paa_keywords'] = []
         st.session_state['paa_keyword_count'] = 1
-        st.rerun()
+        # st.rerun()  # dinonaktifkan sementara untuk debug
     else:
         st.error("❌ Tidak ada PAA yang ditemukan untuk keyword tersebut.")
 
