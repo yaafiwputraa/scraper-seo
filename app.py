@@ -217,6 +217,11 @@ def scrape_paa(query):
                 st.error(f"❌ SerpAPI Error: {error_msg}")
             return []
 
+        # DEBUG: lihat semua field yang tersedia
+        st.write("🔍 RAW PAA DATA:")
+        for paa in data.get("related_questions", []):
+            st.write(paa)
+
         for paa in data.get("related_questions", []):
             paa_results.append({
                 "Keyword": query,
