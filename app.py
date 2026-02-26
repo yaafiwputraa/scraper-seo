@@ -223,8 +223,17 @@ def scrape_paa(query):
             question = paa.get("question", "")
             answer = ""
 
-            # DEBUG: tampilkan semua key yang ada
-            st.write(f"Keys untuk '{question}': {list(paa.keys())}")
+            # Ambil jawaban dari text_blocks
+            text_blocks = paa.get("text_blocks", [])
+            snippets = []
+            for block in text_blocks:
+                if block.get("type") == "paragraph" and block.get("snippet"):
+                    snippets.append(block["snippet"])
+                elif block.get("type") == "list":
+                    for item in block.get("list", []):
+                        if item.get("snippet"):
+                            snippets.append(f"- {item['snippet']}")
+            answer = " ".join(snippets)
 
             paa_results.append({
                 "Keyword": query,
@@ -497,7 +506,7 @@ if paa_search_clicked and paa_semua_terisi:
         st.session_state['paa_result_keywords'] = paa_keywords.copy()
         st.session_state['paa_keywords'] = []
         st.session_state['paa_keyword_count'] = 1
-        # st.rerun()  # dinonaktifkan sementara untuk debug
+        st.rerun()
     else:
         st.error("❌ Tidak ada PAA yang ditemukan untuk keyword tersebut.")
 
