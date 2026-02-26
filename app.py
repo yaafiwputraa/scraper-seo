@@ -219,25 +219,29 @@ def scrape_paa(query):
 
         raw_paa = data.get("related_questions", [])
 
-        # DEBUG: tampilkan semua field
-        if raw_paa:
-            st.write("🔍 Semua field PAA pertama:")
-            st.json(raw_paa[0])
-
         for paa in raw_paa:
+            question = paa.get("question", "")
             answer = ""
+
+            # Coba ambil dari snippet langsung
             if paa.get("snippet"):
                 answer = paa["snippet"]
-            elif paa.get("answer"):
-                answer = paa["answer"]
-            elif paa.get("list"):
-                answer = ", ".join(paa["list"])
-            elif paa.get("table"):
-                answer = str(paa["table"])
+            # Kalau tidak ada, ambil dari ai_overview > text_blocks
+            elif paa.get("ai_overview"):
+                text_blocks = paa["ai_overview"].get("text_blocks", [])
+                snippets = []
+                for block in text_blocks:
+                    if block.get("type") == "paragraph" and block.get("snippet"):
+                        snippets.append(block["snippet"])
+                    elif block.get("type") == "list":
+                        for item in block.get("list", []):
+                            if item.get("snippet"):
+                                snippets.append(f"- {item['snippet']}")
+                answer = " ".join(snippets)
 
             paa_results.append({
                 "Keyword": query,
-                "Question": paa.get("question", ""),
+                "Question": question,
                 "Answer": answer
             })
 
@@ -506,7 +510,7 @@ if paa_search_clicked and paa_semua_terisi:
         st.session_state['paa_result_keywords'] = paa_keywords.copy()
         st.session_state['paa_keywords'] = []
         st.session_state['paa_keyword_count'] = 1
-        # st.rerun()  # dinonaktifkan sementara untuk debug
+        st.rerun()
     else:
         st.error("❌ Tidak ada PAA yang ditemukan untuk keyword tersebut.")
 
