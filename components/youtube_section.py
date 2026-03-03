@@ -62,8 +62,8 @@ def _run_scraping(keywords: list[str], max_results: int) -> None:
         st.error("❌ Tidak ada video yang ditemukan untuk keyword tersebut.")
         return
 
-    df = pd.DataFrame(all_data)[["keyword", "title", "link", "channel", "duration", "views", "published_date", "description"]]
-    df.columns = ["Keyword", "Title", "Link", "Channel", "Duration", "Views", "Published Date", "Description"]
+    df = pd.DataFrame(all_data)[["keyword", "title", "link"]]
+    df.columns = ["Keyword", "Title", "Link"]
 
     st.session_state["yt_df"] = df
     st.session_state["yt_keywords"] = keywords.copy()
@@ -92,8 +92,6 @@ def _render_results() -> None:
         lambda url: f'<a href="{url}" target="_blank">{url}</a>' if url else ""
     )
     st.write(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
 
     excel_bytes = df_to_excel(df, sheet_name="YouTube Results")
     file_name = build_filename("youtube", kws)

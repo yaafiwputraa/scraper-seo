@@ -34,11 +34,6 @@ def scrape_youtube(query: str, max_results: int = 20) -> list[dict]:
                 "keyword": query,
                 "title": video.get("title", ""),
                 "link": video.get("link", ""),
-                "channel": video.get("channel", {}).get("name", ""),
-                "duration": video.get("length", ""),
-                "published_date": video.get("published_date", ""),
-                "views": video.get("views", ""),
-                "description": video.get("description", ""),
             })
 
     except Exception as e:
