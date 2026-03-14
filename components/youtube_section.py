@@ -4,6 +4,7 @@ import streamlit as st
 from components.keyword_input import render_keyword_input, reset_keyword_state
 from scrapers.youtube_scraper import scrape_youtube
 from utils.export import build_filename, df_to_excel
+from utils.video_processing import process_youtube_to_zip
 
 _PREFIX = "yt"
 _DEFAULT_MAX_RESULTS = 20
@@ -39,6 +40,7 @@ def render() -> None:
 
     # --- Tampilkan hasil ---
     _render_results()
+    _render_video_cutter()
 
 
 # ---------------------------------------------------------------------------
@@ -109,4 +111,54 @@ def _render_results() -> None:
 
 def _clear_results() -> None:
     for key in ("yt_df", "yt_keywords"):
+        st.session_state.pop(key, None)
+
+
+def _render_video_cutter() -> None:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">✂️ YouTube Video Cutter (10 detik/clip -> ZIP)</div>', unsafe_allow_html=True)
+
+    url = st.text_input(
+        "Link YouTube",
+        key="yt_video_url",
+        placeholder="https://www.youtube.com/watch?v=...",
+        help="Video akan dipotong per 10 detik, dirender 4K, metadata dihapus, lalu dikirim sebagai ZIP.",
+    )
+
+    process_clicked = st.button("Proses Video Jadi ZIP", key="yt_process_zip")
+
+    if process_clicked:
+        if not url.strip():
+            st.warning("Masukkan link YouTube terlebih dahulu.")
+        else:
+            with st.spinner("Mengunduh, memotong video, render 4K, dan membuat ZIP..."):
+                try:
+                    zip_bytes, zip_name, clip_count = process_youtube_to_zip(
+                        url=url.strip(),
+                        segment_seconds=10,
+                        upscale_4k=True,
+                    )
+                except Exception as exc:
+                    st.error(f"❌ Proses gagal: {exc}")
+                else:
+                    st.session_state["yt_clip_zip_bytes"] = zip_bytes
+                    st.session_state["yt_clip_zip_name"] = zip_name
+                    st.session_state["yt_clip_count"] = clip_count
+
+    if "yt_clip_zip_bytes" in st.session_state:
+        clip_count = st.session_state.get("yt_clip_count", 0)
+        st.success(f"✅ Selesai. Total clip MP4: {clip_count}")
+        st.download_button(
+            label="⬇️ Download ZIP Clip MP4",
+            data=st.session_state["yt_clip_zip_bytes"],
+            file_name=st.session_state.get("yt_clip_zip_name", "youtube_clips.zip"),
+            mime="application/zip",
+            on_click=_clear_zip_results,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _clear_zip_results() -> None:
+    for key in ("yt_clip_zip_bytes", "yt_clip_zip_name", "yt_clip_count"):
         st.session_state.pop(key, None)
