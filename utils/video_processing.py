@@ -73,6 +73,8 @@ def _download_video(url: str, output_file: Path) -> str:
         "quiet": True,
         "no_warnings": True,
         "ffmpeg_location": str(ffmpeg_path),  # Tambahkan baris ini
+        "sleep_interval_requests": 1,
+        "extractor_args": {"youtube": {"client": ["android", "web"]}},
     }
 
     try:
