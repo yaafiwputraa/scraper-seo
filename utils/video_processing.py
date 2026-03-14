@@ -63,6 +63,8 @@ def process_youtube_to_zip(
 
 
 def _download_video(url: str, output_file: Path) -> str:
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    
     ydl_opts = {
         "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "outtmpl": str(output_file),
@@ -70,6 +72,7 @@ def _download_video(url: str, output_file: Path) -> str:
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
+        "ffmpeg_location": str(ffmpeg_path),  # Tambahkan baris ini
     }
 
     try:
